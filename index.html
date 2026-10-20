@@ -51,7 +51,7 @@ body.abrindo .loading{display:block}
       <input id="s" name="password" type="password" autocomplete="current-password" required autofocus>
       <button class="eye" type="button" id="eye" aria-label="Mostrar senha"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
     </div>
-    <label class="rem"><input type="checkbox" id="lem" checked> Lembrar neste aparelho</label>
+    <label class="rem"><input type="checkbox" id="lem" checked> Lembrar neste aparelho até segunda-feira</label>
     <button class="go" id="go" type="submit">Entrar</button>
     <p class="msg" id="msg" role="alert"></p>
   </form>
@@ -60,7 +60,7 @@ body.abrindo .loading{display:block}
 </main>
 <script>
 (function(){
-  var K='hubLoginK', ARQ='hub.enc';
+  var K='hubLoginK', KE='hubLoginExp', ARQ='hub.enc', expirou=false;
   var $=function(i){return document.getElementById(i)};
   var arquivo=fetch(ARQ,{cache:'no-cache'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.arrayBuffer();});
   function msg(t,info){var m=$('msg');m.textContent=t||'';m.className='msg'+(info?' info':'');}
@@ -75,12 +75,14 @@ body.abrindo .loading{display:block}
     return new Response(st).text();
   }
   function mostrar(html){document.open();document.write(html);document.close();}
-  function guardar(raw,lembrar){try{if(lembrar){localStorage.setItem(K,b64(raw));}else{sessionStorage.setItem(K,b64(raw));}}catch(e){}}
-  function lida(){var v=null;try{v=sessionStorage.getItem(K)||localStorage.getItem(K);}catch(e){}return v;}
-  function esquecer(){try{localStorage.removeItem(K);sessionStorage.removeItem(K);}catch(e){}}
+  function proxSegunda(t){var BR=3*3600e3,d=new Date(t-BR),dia=d.getUTCDay(),n=((8-dia)%7)||7;return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()+n)+BR;}
+  function guardar(raw,lembrar){try{if(lembrar){localStorage.setItem(K,b64(raw));localStorage.setItem(KE,String(proxSegunda(Date.now())));}else{sessionStorage.setItem(K,b64(raw));}}catch(e){}}
+  function lida(){var v=null;try{v=sessionStorage.getItem(K);if(!v&&localStorage.getItem(K)){var exp=+localStorage.getItem(KE)||0;if(exp&&Date.now()<exp){v=localStorage.getItem(K);}else{localStorage.removeItem(K);localStorage.removeItem(KE);expirou=true;}}}catch(e){}return v;}
+  function esquecer(){try{localStorage.removeItem(K);localStorage.removeItem(KE);sessionStorage.removeItem(K);}catch(e){}}
   function falhaArquivo(e){document.body.classList.remove('abrindo');var t=String(e&&e.message||e);msg(t==='navegador'?'Este navegador é antigo demais para abrir o Hub. Atualize o Safari/Chrome.':'Não consegui carregar o Hub ('+t+'). Verifique a internet e tente de novo.');$('go').disabled=false;}
   // Acesso lembrado
   var salva=lida();
+  if(!salva&&expirou)msg('Os acessos salvos são renovados toda segunda-feira. Digite a senha de novo.',true);
   if(salva){
     document.body.classList.add('abrindo');
     arquivo.then(function(buf){var p=partes(buf);return decifrar(ub64(salva),p).then(abrirHtml,function(){esquecer();throw 'senha';});})

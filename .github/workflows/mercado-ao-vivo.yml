@@ -1,0 +1,37 @@
+# Cotações quase em tempo real na seção Mercado do Hub.
+# Nos dias úteis, do pré-abertura (9h50) até 18h20 de Brasília, grava a cada
+# ~60 s um documento no Firestore do rico-hub que o Hub lê direto.
+# Dois turnos porque cada execução do GitHub Actions dura no máximo 6 h.
+name: Mercado ao vivo
+
+on:
+  schedule:
+    - cron: '50 12 * * 1-5'   # 9h50 de Brasília
+    - cron: '45 16 * * 1-5'   # 13h45 de Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mercado-ao-vivo
+  cancel-in-progress: true
+
+jobs:
+  ao-vivo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Cotações a cada minuto até o fim do turno
+        run: |
+          agora=$(date -u +%s)
+          fim=$(date -u -d "$(date -u +%Y-%m-%d) 21:20" +%s)
+          minutos=$(( (fim - agora) / 60 ))
+          [ $minutos -gt 285 ] && minutos=285
+          [ $minutos -lt 5 ] && minutos=5
+          echo "rodando por $minutos minutos"
+          python mercado_vivo.py $minutos

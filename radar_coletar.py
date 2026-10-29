@@ -40,7 +40,7 @@ FEEDS = {
     'https://feeds.content.dowjones.io/public/rss/mw_topstories': (25, gnews('site:marketwatch.com when:2d', False), False),
     'https://finance.yahoo.com/news/rssindex': (25, gnews('site:finance.yahoo.com when:2d', False), False),
     # daily de referência
-    'https://conteudos.xpi.com.br/morning-call/feed/': (6, gnews('site:conteudos.xpi.com.br/morning-call when:3d'), True),
+    'https://conteudos.xpi.com.br/morning-call/feed/': (10, gnews('site:conteudos.xpi.com.br/morning-call when:3d'), True),
     'https://anchor.fm/s/104cb6d1c/podcast/rss': (3, None, False),
     # Raio-XP (card da Visão geral)
     'https://conteudos.xpi.com.br/acoes/relatorios/feed/': (30, None, False),
@@ -148,9 +148,9 @@ def ler_feed(xml, limite, conteudo):
             'content': corta(cont, 20000) if conteudo else '',
             'enclosure': enclosure,
         })
-        if len(itens) >= limite:
-            break
-    return {'feed': {'title': titulo_feed}, 'items': itens}
+    # mais recente primeiro (o Google Notícias ordena por relevância)
+    itens.sort(key=lambda x: x['pubDate'], reverse=True)
+    return {'feed': {'title': titulo_feed}, 'items': itens[:limite]}
 
 
 def recente(feed, horas=72):

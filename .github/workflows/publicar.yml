@@ -49,10 +49,24 @@ jobs:
           curl -fsS -m 30 -o radar.enc "https://gustavoamorim27-svg.github.io/hub-do-assessor/radar.enc" \
             && echo "radar anterior mantido" || echo "sem radar anterior"
 
+      - name: Mercado anterior (para acumular o histórico dos juros)
+        run: |
+          curl -fsS -m 30 -o mercado_anterior.json "https://gustavoamorim27-svg.github.io/hub-do-assessor/mercado.json" \
+            || echo '{}' > mercado_anterior.json
+
+      - name: Coletar dados de mercado
+        id: mercado
+        continue-on-error: true
+        run: python mercado_coletar.py mercado_anterior.json
+
+      - name: Sem mercado novo? Mantém o que está no ar
+        if: steps.mercado.outcome != 'success'
+        run: grep -q '"series"' mercado_anterior.json && cp mercado_anterior.json mercado.json || true
+
       - name: Montar o site
         run: |
           mkdir -p _site
-          rsync -a --exclude '.git' --exclude '.github' --exclude '_site' --exclude 'radar_coletar.py' ./ _site/
+          rsync -a --exclude '.git' --exclude '.github' --exclude '_site' --exclude 'radar_coletar.py' --exclude 'mercado_coletar.py' --exclude 'mercado_anterior.json' --exclude '*.zip' ./ _site/
           ls -la _site
 
       - uses: actions/configure-pages@v5

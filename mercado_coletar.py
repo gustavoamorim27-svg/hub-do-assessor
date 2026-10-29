@@ -45,6 +45,7 @@ ATIVOS = [
 ]
 DI_VENCTOS = ['F27', 'F28', 'F29', 'F30', 'F31', 'F32', 'F33', 'F35']
 DIARIO_HORAS = 6  # serie de 1 ano: renova a cada 6 h
+MENSAL_HORAS = 20  # fechamentos mensais: uma vez por dia
 
 
 def get_json(url):
@@ -53,13 +54,17 @@ def get_json(url):
         return json.loads(r.read().decode('utf-8'))
 
 
-def yahoo(simbolo, rng, intervalo):
+def yahoo(simbolo, rng, intervalo, ajustado=False):
     url = ('https://query1.finance.yahoo.com/v8/finance/chart/' + urllib.parse.quote(simbolo)
            + '?range=' + rng + '&interval=' + intervalo + '&includePrePost=false')
     j = get_json(url)
     res = j['chart']['result'][0]
     ts = res.get('timestamp') or []
     close = (res.get('indicators', {}).get('quote') or [{}])[0].get('close') or []
+    if ajustado:
+        adj = ((res.get('indicators', {}).get('adjclose') or [{}])[0].get('adjclose')) or []
+        if len(adj) == len(close):
+            close = [a if a is not None else c for a, c in zip(adj, close)]
     pts = [[int(t) * 1000, round(float(c), 6)] for t, c in zip(ts, close) if c is not None]
     meta = res.get('meta', {})
     return pts, meta
@@ -70,13 +75,19 @@ def coletar_ativo(a, anterior):
     ant = (anterior.get('series') or {}).get(aid) or {}
     s = {'nome': nome, 'simbolo': sym, 'grupo': grupo, 'casas': casas, 'prefixo': prefixo,
          'diario': ant.get('diario') or [], 'diarioEm': ant.get('diarioEm') or 0,
-         'intradia': [], 'ultimo': ant.get('ultimo'), 'anterior': ant.get('anterior'), 'em': ant.get('em')}
+         'intradia': [], 'ultimo': ant.get('ultimo'), 'anterior': ant.get('anterior'), 'em': ant.get('em'),
+         'mensal': ant.get('mensal') or [], 'mensalEm': ant.get('mensalEm') or 0}
     agora = time.time()
     try:
         if not s['diario'] or agora - s['diarioEm'] / 1000 > DIARIO_HORAS * 3600:
             pts, meta = yahoo(sym, '1y', '1d')
             if pts:
                 s['diario'], s['diarioEm'] = pts, int(agora * 1000)
+        if not s['mensal'] or agora - s['mensalEm'] / 1000 > MENSAL_HORAS * 3600:
+            # fechamento mensal de 6 anos (ajustado por proventos) para a tabela de rentabilidade
+            pm, _ = yahoo(sym, '6y', '1mo', ajustado=True)
+            if pm:
+                s['mensal'], s['mensalEm'] = pm, int(agora * 1000)
         pts, meta = yahoo(sym, '1d', '5m')
         s['intradia'] = pts
         if meta.get('regularMarketPrice') is not None:

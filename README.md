@@ -22,6 +22,14 @@ HUB_SENHA='…' python3 cofre.py fechar hub-src.html hub.enc   # criptografa de 
 
 Nunca suba o `hub-src.html` nem a senha para o repositório. O `fechar` mantém o sal do arquivo, então quem marcou "lembrar" continua entrando direto depois de uma atualização.
 
+## Radar de mercado (notícias e Morning Call)
+
+- O workflow `.github/workflows/publicar.yml` publica o site no GitHub Pages a cada push e, nos dias úteis, a cada 15–30 min.
+- Antes de publicar, `radar_coletar.py` lê os feeds (manchetes, Morning Call e podcast da XP, relatórios Raio-XP) e grava `radar.enc` ao lado do Hub. Feed vazio ou bloqueado cai para o Google Notícias do mesmo site.
+- O Hub lê o `radar.enc` do próprio endereço (passa pela rede da Rico) e só usa o rss2json de reserva.
+- `radar.enc` é criptografado com a chave pública `radar_chave.pem`; a chave privada fica só dentro do `hub.enc`.
+- Para rodar na hora: aba Actions → "Publicar Hub e Radar" → Run workflow. O Pages precisa estar com a fonte "GitHub Actions".
+
 ---
 
 Material de apoio interno. Não constitui recomendação de investimento.

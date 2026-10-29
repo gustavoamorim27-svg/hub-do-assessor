@@ -1,0 +1,63 @@
+# Publica o Hub no GitHub Pages e renova o Radar de mercado (radar.enc).
+# Roda a cada push na main e, nos dias úteis, a cada 15–30 min de manhã e à
+# tarde (o Morning Call da XP sai por volta das 8h30 de Brasília).
+name: Publicar Hub e Radar
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '*/15 10-12 * * 1-5'      # 7h–9h45 de Brasília
+    - cron: '*/30 13-23 * * 1-5'      # 10h–20h30
+    - cron: '0 */3 * * 0,6'           # fim de semana
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Dependência
+        run: pip install --quiet cryptography==43.0.3
+
+      - name: Coletar feeds do Radar
+        id: coleta
+        continue-on-error: true
+        run: python radar_coletar.py
+
+      - name: Sem coleta nova? Mantém o radar que está no ar
+        if: steps.coleta.outcome != 'success'
+        run: |
+          curl -fsS -m 30 -o radar.enc "https://gustavoamorim27-svg.github.io/hub-do-assessor/radar.enc" \
+            && echo "radar anterior mantido" || echo "sem radar anterior"
+
+      - name: Montar o site
+        run: |
+          mkdir -p _site
+          rsync -a --exclude '.git' --exclude '.github' --exclude '_site' --exclude 'radar_coletar.py' ./ _site/
+          ls -la _site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

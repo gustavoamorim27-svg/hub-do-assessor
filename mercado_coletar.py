@@ -26,9 +26,15 @@ ATIVOS = [
     ('sp500', 'S&P 500', '^GSPC', 'indices', 0, ''),
     ('nasdaq', 'Nasdaq', '^IXIC', 'indices', 0, ''),
     ('dolar', 'Dólar', 'BRL=X', 'indices', 4, 'R$ '),
-    ('brent', 'Brent', 'BZ=F', 'indices', 2, 'US$ '),
-    ('ouro', 'Ouro', 'GC=F', 'indices', 2, 'US$ '),
     ('btc', 'Bitcoin', 'BTC-USD', 'indices', 0, 'US$ '),
+    # commodities (secao propria)
+    ('brent', 'Petróleo Brent', 'BZ=F', 'commod', 2, 'US$ '),
+    ('wti', 'Petróleo WTI', 'CL=F', 'commod', 2, 'US$ '),
+    ('ouro', 'Ouro', 'GC=F', 'commod', 2, 'US$ '),
+    ('prata', 'Prata', 'SI=F', 'commod', 2, 'US$ '),
+    ('cobre', 'Cobre', 'HG=F', 'commod', 3, 'US$ '),
+    ('soja', 'Soja', 'ZS=F', 'commod', 2, 'US¢ '),
+    ('cafe', 'Café', 'KC=F', 'commod', 2, 'US¢ '),
     ('PETR4', 'Petrobras', 'PETR4.SA', 'br', 2, 'R$ '),
     ('VALE3', 'Vale', 'VALE3.SA', 'br', 2, 'R$ '),
     ('ITUB4', 'Itaú Unibanco', 'ITUB4.SA', 'br', 2, 'R$ '),
@@ -37,6 +43,16 @@ ATIVOS = [
     ('B3SA3', 'B3', 'B3SA3.SA', 'br', 2, 'R$ '),
     ('WEGE3', 'WEG', 'WEGE3.SA', 'br', 2, 'R$ '),
     ('ABEV3', 'Ambev', 'ABEV3.SA', 'br', 2, 'R$ '),
+    ('ITSA4', 'Itaúsa', 'ITSA4.SA', 'br', 2, 'R$ '),
+    ('BPAC11', 'BTG Pactual', 'BPAC11.SA', 'br', 2, 'R$ '),
+    ('PRIO3', 'PRIO', 'PRIO3.SA', 'br', 2, 'R$ '),
+    ('SUZB3', 'Suzano', 'SUZB3.SA', 'br', 2, 'R$ '),
+    ('SBSP3', 'Sabesp', 'SBSP3.SA', 'br', 2, 'R$ '),
+    ('EQTL3', 'Equatorial', 'EQTL3.SA', 'br', 2, 'R$ '),
+    ('RDOR3', 'Rede D\'Or', 'RDOR3.SA', 'br', 2, 'R$ '),
+    ('RENT3', 'Localiza', 'RENT3.SA', 'br', 2, 'R$ '),
+    ('GGBR4', 'Gerdau', 'GGBR4.SA', 'br', 2, 'R$ '),
+    ('RADL3', 'Raia Drogasil', 'RADL3.SA', 'br', 2, 'R$ '),
     ('AAPL', 'Apple', 'AAPL', 'us', 2, 'US$ '),
     ('MSFT', 'Microsoft', 'MSFT', 'us', 2, 'US$ '),
     ('NVDA', 'Nvidia', 'NVDA', 'us', 2, 'US$ '),
@@ -44,7 +60,17 @@ ATIVOS = [
     ('GOOGL', 'Alphabet', 'GOOGL', 'us', 2, 'US$ '),
     ('META', 'Meta', 'META', 'us', 2, 'US$ '),
     ('TSLA', 'Tesla', 'TSLA', 'us', 2, 'US$ '),
+    ('AVGO', 'Broadcom', 'AVGO', 'us', 2, 'US$ '),
+    ('BRK-B', 'Berkshire Hathaway', 'BRK-B', 'us', 2, 'US$ '),
+    ('JPM', 'JPMorgan', 'JPM', 'us', 2, 'US$ '),
+    ('LLY', 'Eli Lilly', 'LLY', 'us', 2, 'US$ '),
+    ('V', 'Visa', 'V', 'us', 2, 'US$ '),
+    ('NFLX', 'Netflix', 'NFLX', 'us', 2, 'US$ '),
+    ('AMD', 'AMD', 'AMD', 'us', 2, 'US$ '),
+    ('PLTR', 'Palantir', 'PLTR', 'us', 2, 'US$ '),
 ]
+# a lista do Hub mostra so jan/30 e jan/31; os outros vencimentos seguem na
+# coleta porque desenham a curva de juros
 DI_VENCTOS = ['F27', 'F28', 'F29', 'F30', 'F31', 'F32', 'F33', 'F35']
 DIARIO_HORAS = 6  # serie de 1 ano: renova a cada 6 h
 MENSAL_HORAS = 20  # fechamentos mensais: uma vez por dia
@@ -168,6 +194,25 @@ def sgs(codigo, anos=6):
     return out
 
 
+def fred(serie, anos=6):
+    """Serie diaria do FRED (Fed de St. Louis) pelo CSV publico: [[ts_ms, valor], ...]."""
+    ini = (datetime.now(BRT) - timedelta(days=int(anos * 365.25) + 40)).strftime('%Y-%m-%d')
+    url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=' + serie + '&cosd=' + ini
+    req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': 'text/csv'})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        linhas = r.read().decode('utf-8').strip().splitlines()
+    out = []
+    for l in linhas[1:]:
+        d, _, v = l.partition(',')
+        try:
+            val = float(v)
+        except ValueError:
+            continue
+        dt = datetime.strptime(d.strip(), '%Y-%m-%d').replace(hour=12, tzinfo=BRT)
+        out.append([int(dt.timestamp() * 1000), val])
+    return out
+
+
 def fim_do_mes(ts):
     d = datetime.fromtimestamp(ts / 1000, BRT)
     prox = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
@@ -182,15 +227,17 @@ def coletar_bcb(anterior):
     out = {}
     agora = time.time()
     defs = [
-        ('selic', {'nome': 'Selic', 'simbolo': 'Meta Copom', 'grupo': 'indices', 'tipo': 'taxa', 'casas': 2,
+        ('selic', {'nome': 'Selic', 'simbolo': 'Meta Copom', 'grupo': 'juros', 'tipo': 'taxa', 'casas': 2,
                    'prefixo': '', 'sufixo': '% a.a.', 'fonte': 'Banco Central (SGS 432, 11 e 4390)'}),
-        ('ipca', {'nome': 'IPCA', 'simbolo': '12 meses · IBGE', 'grupo': 'indices', 'tipo': 'taxa', 'casas': 2,
+        ('ipca', {'nome': 'IPCA', 'simbolo': '12 meses · IBGE', 'grupo': 'juros', 'tipo': 'taxa', 'casas': 2,
                   'prefixo': '', 'sufixo': '% em 12 meses', 'fonte': 'IBGE via Banco Central (SGS 433 e 13522)'}),
+        ('fed', {'nome': 'Juros EUA', 'simbolo': 'Fed funds · FOMC', 'grupo': 'juros', 'tipo': 'taxa', 'casas': 2,
+                 'prefixo': '', 'sufixo': '% a.a.', 'fonte': 'Federal Reserve via FRED (DFEDTARU, DFEDTARL e DFF)'}),
     ]
     for aid, base in defs:
         ant = (anterior.get('series') or {}).get(aid) or {}
         s = dict(base)
-        for c in ('diario', 'mensal', 'indice', 'ultimo', 'anterior', 'em', 'mudouEm', 'diarioEm'):
+        for c in ('diario', 'mensal', 'indice', 'ultimo', 'anterior', 'em', 'mudouEm', 'diarioEm', 'inferior'):
             s[c] = ant.get(c)
         if s['diario'] and agora - (s['diarioEm'] or 0) / 1000 < BCB_HORAS * 3600:
             out[aid] = s
@@ -208,6 +255,25 @@ def coletar_bcb(anterior):
                 s['indice'] = idx
                 s['diario'] = meta
                 s['mensal'] = mensal
+            elif aid == 'fed':
+                teto = [p for p in fred('DFEDTARU') if datetime.fromtimestamp(p[0] / 1000, BRT).weekday() < 5]
+                piso = fred('DFEDTARL')
+                efetiva = fred('DFF')  # taxa efetiva diaria (dias corridos, base 360)
+                idx, v, por_mes = [], 1.0, {}
+                for ts, r in efetiva:
+                    f = 1 + r / 36000
+                    v *= f
+                    d = datetime.fromtimestamp(ts / 1000, BRT)
+                    m = (d.year, d.month)
+                    por_mes[m] = por_mes.get(m, 1.0) * f
+                    if d.weekday() < 5:
+                        idx.append([ts, float('%.10g' % v)])
+                hoje = datetime.now(BRT)
+                s['mensal'] = [[int(datetime(y, mm, 1, 12, tzinfo=BRT).timestamp() * 1000), round((f - 1) * 100, 4)]
+                               for (y, mm), f in sorted(por_mes.items()) if (y, mm) != (hoje.year, hoje.month)]
+                s['indice'] = idx
+                s['diario'] = teto
+                s['inferior'] = piso[-1][1] if piso else None
             else:
                 mensal = sgs(433)
                 doze = sgs(13522)

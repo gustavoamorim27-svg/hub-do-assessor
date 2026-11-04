@@ -2,6 +2,12 @@
   "mes": "2026-11",
   "titulo": "XP rebaixa a bolsa para neutra e vê o Ibovespa a 200 mil pontos no fim de 2027",
   "publicado": "2026-11-03",
+  "curtos": [
+    "Bolsa rebaixada de compra para neutra depois do tombo de outubro.",
+    "Ibovespa a 200 mil pontos no fim de 2027, cerca de 19% de alta.",
+    "Riscos no radar: fiscal, inflação e juros em alta e economia mais fraca em 2027.",
+    "Top Ações: entram WEGE3, JBSS32 e CXSE3; saem BPAC11 e ROXO34."
+  ],
   "bullets": [
     "Bolsa brasileira rebaixada de compra para neutra depois do tombo de outubro: os preços ficaram mais atrativos, mas o cenário macro piorou.",
     "Ibovespa com preço justo de 200 mil pontos no fim de 2027, cerca de 19% de alta, margem que já não supera com folga a renda fixa.",
@@ -13,7 +19,13 @@
     "Índice de Sentimento XP em 18/100: leitura pessimista, mas ainda longe do nível que historicamente sinaliza compra clara."
   ],
   "fontes": [
-    {"nome": "InfoMoney · 03/11/2026", "url": "https://www.infomoney.com.br/mercados/xp-rebaixa-bolsa-para-neutra-apos-tombo-pos-eleicao-e-ve-ibovespa-a-200-mil-pontos-em-2027/"},
-    {"nome": "BPMoney", "url": "https://bpmoney.com.br/mercado/xp-rebaixa-bolsa-neutra-ibovespa-200-mil-2027/"}
+    {
+      "nome": "InfoMoney · 03/11/2026",
+      "url": "https://www.infomoney.com.br/mercados/xp-rebaixa-bolsa-para-neutra-apos-tombo-pos-eleicao-e-ve-ibovespa-a-200-mil-pontos-em-2027/"
+    },
+    {
+      "nome": "BPMoney",
+      "url": "https://bpmoney.com.br/mercado/xp-rebaixa-bolsa-neutra-ibovespa-200-mil-2027/"
+    }
   ]
 }

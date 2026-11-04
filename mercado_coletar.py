@@ -89,6 +89,16 @@ def get_json(url):
 
 
 def yahoo(simbolo, rng, intervalo, ajustado=False):
+    pts, meta, _ = yahoo_velas(simbolo, rng, intervalo, ajustado)
+    return pts, meta
+
+
+def _r(v, casas):
+    return round(float(v), casas)
+
+
+def yahoo_velas(simbolo, rng, intervalo, ajustado=False, casas=4):
+    """Fechamentos [[ts, c]], meta e velas [[ts, abertura, maxima, minima, fechamento]] (sem ajuste)."""
     url = ('https://query1.finance.yahoo.com/v8/finance/chart/' + urllib.parse.quote(simbolo)
            + '?range=' + rng + '&interval=' + intervalo + '&includePrePost=false')
     j = get_json(url)
@@ -101,7 +111,17 @@ def yahoo(simbolo, rng, intervalo, ajustado=False):
             close = [a if a is not None else c for a, c in zip(adj, close)]
     pts = [[int(t) * 1000, round(float(c), 6)] for t, c in zip(ts, close) if c is not None]
     meta = res.get('meta', {})
-    return pts, meta
+    q = (res.get('indicators', {}).get('quote') or [{}])[0]
+    o, h, l, c = q.get('open') or [], q.get('high') or [], q.get('low') or [], q.get('close') or []
+    velas = []
+    for i, t in enumerate(ts):
+        try:
+            if None in (o[i], h[i], l[i], c[i]):
+                continue
+            velas.append([int(t) * 1000, _r(o[i], casas), _r(h[i], casas), _r(l[i], casas), _r(c[i], casas)])
+        except IndexError:
+            break
+    return pts, meta, velas
 
 
 def extras():
@@ -140,20 +160,24 @@ def coletar_ativo(a, anterior):
     s = {'nome': nome, 'simbolo': sym, 'grupo': grupo, 'casas': casas, 'prefixo': prefixo,
          'diario': ant.get('diario') or [], 'diarioEm': ant.get('diarioEm') or 0,
          'intradia': [], 'ultimo': ant.get('ultimo'), 'anterior': ant.get('anterior'), 'em': ant.get('em'),
-         'mensal': ant.get('mensal') or [], 'mensalEm': ant.get('mensalEm') or 0}
+         'mensal': ant.get('mensal') or [], 'mensalEm': ant.get('mensalEm') or 0,
+         'velas': ant.get('velas') or [], 'velasM': ant.get('velasM') or [], 'velasI': []}
+    cv = min(6, casas + 2)  # casas das velas
     agora = time.time()
     try:
-        if not s['diario'] or agora - s['diarioEm'] / 1000 > DIARIO_HORAS * 3600:
-            pts, meta = yahoo(sym, '1y', '1d')
+        if not s['diario'] or not s['velas'] or agora - s['diarioEm'] / 1000 > DIARIO_HORAS * 3600:
+            pts, meta, velas = yahoo_velas(sym, '1y', '1d', casas=cv)
             if pts:
-                s['diario'], s['diarioEm'] = pts, int(agora * 1000)
-        if not s['mensal'] or agora - s['mensalEm'] / 1000 > MENSAL_HORAS * 3600:
-            # fechamento mensal de 6 anos (ajustado por proventos) para a tabela de rentabilidade
-            pm, _ = yahoo(sym, '6y', '1mo', ajustado=True)
+                s['diario'], s['diarioEm'], s['velas'] = pts, int(agora * 1000), velas
+        if not s['mensal'] or not s['velasM'] or agora - s['mensalEm'] / 1000 > MENSAL_HORAS * 3600:
+            # fechamento mensal de 6 anos (ajustado por proventos) para a tabela de rentabilidade;
+            # as velas mensais (sem ajuste) desenham o grafico de 5 anos em velas
+            pm, _, vm = yahoo_velas(sym, '6y', '1mo', ajustado=True, casas=cv)
             if pm:
-                s['mensal'], s['mensalEm'] = pm, int(agora * 1000)
-        pts, meta = yahoo(sym, '1d', '5m')
+                s['mensal'], s['mensalEm'], s['velasM'] = pm, int(agora * 1000), vm
+        pts, meta, vi = yahoo_velas(sym, '1d', '5m', casas=cv)
         s['intradia'] = pts
+        s['velasI'] = vi
         if meta.get('regularMarketPrice') is not None:
             s['ultimo'] = meta['regularMarketPrice']
             s['anterior'] = meta.get('chartPreviousClose', meta.get('previousClose'))

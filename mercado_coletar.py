@@ -116,8 +116,8 @@ def yahoo_velas(simbolo, rng, intervalo, ajustado=False, casas=4):
     velas = []
     for i, t in enumerate(ts):
         try:
-            if None in (o[i], h[i], l[i], c[i]):
-                continue
+            if None in (o[i], h[i], l[i], c[i]) or min(o[i], h[i], l[i], c[i]) <= 0:
+                continue  # o Yahoo manda a vela do dia ainda zerada antes da abertura
             velas.append([int(t) * 1000, _r(o[i], casas), _r(h[i], casas), _r(l[i], casas), _r(c[i], casas)])
         except IndexError:
             break

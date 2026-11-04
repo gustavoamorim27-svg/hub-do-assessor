@@ -27,5 +27,31 @@
       "nome": "BPMoney",
       "url": "https://bpmoney.com.br/mercado/xp-rebaixa-bolsa-neutra-ibovespa-200-mil-2027/"
     }
-  ]
+  ],
+  "recomendadas": {
+    "mes": "2026-11",
+    "fonte": "Top Ações de outubro (melhorinvestimento.net) com as trocas de novembro (InfoMoney/BPMoney, 03/11/2026)",
+    "carteiras": [
+      {
+        "nome": "Top Ações",
+        "tickers": [
+          "EMBJ3",
+          "IGTI11",
+          "PETR4",
+          "SBSP3",
+          "AXIA3",
+          "ITUB4",
+          "CURY3",
+          "GGBR4",
+          "PRIO3",
+          "RDOR3",
+          "TOTS3",
+          "VALE3",
+          "WEGE3",
+          "JBSS32",
+          "CXSE3"
+        ]
+      }
+    ]
+  }
 }

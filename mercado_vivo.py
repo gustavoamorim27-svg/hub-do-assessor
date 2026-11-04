@@ -68,8 +68,20 @@ def um_a_um(simbolos):
         return {s: v for s, v in ex.map(f, simbolos) if v and v[0] is not None}
 
 
+_extras = {'em': 0, 'lista': []}
+
+
+def ativos():
+    """Ativos fixos + os acrescentados na lista do Hub (relidos a cada 5 min)."""
+    if time.time() - _extras['em'] > 300:
+        _extras['lista'] = M.extras()
+        _extras['em'] = time.time()
+    return M.ATIVOS + _extras['lista']
+
+
 def ciclo(modo):
-    simbolos = [a[2] for a in M.ATIVOS]
+    lista = ativos()
+    simbolos = [a[2] for a in lista]
     cot = {}
     if modo['spark']:
         try:
@@ -82,7 +94,7 @@ def ciclo(modo):
     if faltam:
         cot.update(um_a_um(faltam))
     q = {}
-    for aid, nome, sym, *_ in M.ATIVOS:
+    for aid, nome, sym, *_ in lista:
         if sym in cot:
             u, ant, pts = cot[sym]
             q[aid] = {'u': u, 'a': ant, 'p': pts[-120:]}

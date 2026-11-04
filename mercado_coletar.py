@@ -11,7 +11,7 @@ Grava mercado.json ao lado do Hub com:
 São dados públicos de mercado; o arquivo não é criptografado.
 Uso: python mercado_coletar.py [mercado_anterior.json]
 """
-import json, os, sys, time, urllib.parse, urllib.request
+import json, os, re, sys, time, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 
@@ -73,6 +73,12 @@ ATIVOS = [
 # coleta porque desenham a curva de juros
 DI_VENCTOS = ['F27', 'F28', 'F29', 'F30', 'F31', 'F32', 'F33', 'F35']
 DIARIO_HORAS = 6  # serie de 1 ano: renova a cada 6 h
+# Ativos que o Gustavo acrescentou na lista dos Graficos do Hub (busca). Ficam num
+# documento publico do Firestore do rico-hub; cripto nao entra aqui (vem do CoinGecko
+# direto no navegador).
+LISTA_DOC = ('https://firestore.googleapis.com/v1/projects/rico-hub/databases/(default)/documents/'
+             'ricoPipeline/v3-mercado-lista')
+MAX_EXTRAS = 60
 MENSAL_HORAS = 20  # fechamentos mensais: uma vez por dia
 
 
@@ -96,6 +102,36 @@ def yahoo(simbolo, rng, intervalo, ajustado=False):
     pts = [[int(t) * 1000, round(float(c), 6)] for t, c in zip(ts, close) if c is not None]
     meta = res.get('meta', {})
     return pts, meta
+
+
+def extras():
+    """[(id, nome, simbolo Yahoo, grupo, casas, prefixo), ...] acrescentados no Hub."""
+    try:
+        j = get_json(LISTA_DOC)
+        d = json.loads(j['fields']['envelope']['stringValue'])
+    except Exception as e:
+        print('lista do Hub indisponível:', type(e).__name__, str(e)[:80])
+        return []
+    ja = {a[0] for a in ATIVOS}
+    out = []
+    for x in d.get('extras') or []:
+        if not isinstance(x, dict) or x.get('fonte') == 'cg':
+            continue
+        aid, sym = str(x.get('id') or '').strip(), str(x.get('sym') or '').strip()
+        if not re.fullmatch(r'[A-Za-z0-9.\-]{1,20}', aid) or not re.fullmatch(r'[A-Za-z0-9.\-^=]{1,20}', sym) or aid in ja:
+            continue
+        grupo = x.get('grupo') if x.get('grupo') in ('br', 'us', 'indices', 'commod') else 'br'
+        try:
+            casas = max(0, min(6, int(x.get('casas', 2))))
+        except Exception:
+            casas = 2
+        prefixo = str(x.get('prefixo') if x.get('prefixo') is not None else ('R$ ' if grupo == 'br' else 'US$ '))[:5]
+        out.append((aid, str(x.get('nome') or aid)[:60], sym, grupo, casas, prefixo))
+        ja.add(aid)
+        if len(out) >= MAX_EXTRAS:
+            break
+    print('extras do Hub:', [a[0] for a in out])
+    return out
 
 
 def coletar_ativo(a, anterior):
@@ -310,8 +346,11 @@ def main():
             anterior = json.load(open(sys.argv[1], encoding='utf-8'))
         except Exception:
             anterior = {}
+    extra = extras()
     with ThreadPoolExecutor(4) as ex:
-        series = dict(ex.map(lambda a: coletar_ativo(a, anterior), ATIVOS))
+        series = dict(ex.map(lambda a: coletar_ativo(a, anterior), ATIVOS + extra))
+    for a in extra:
+        series[a[0]]['extra'] = True
     # Selic e IPCA entram no grupo de indices logo depois do Ibovespa
     bcb = coletar_bcb(anterior)
     if bcb:

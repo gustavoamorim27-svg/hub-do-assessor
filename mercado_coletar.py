@@ -81,6 +81,18 @@ LISTA_DOC = ('https://firestore.googleapis.com/v1/projects/rico-hub/databases/(d
 MAX_EXTRAS = 60
 MENSAL_HORAS = 20  # fechamentos mensais: uma vez por dia
 
+# historico.json: fechamentos (1 ano diario + 6 anos mensal) de todo o catalogo do Hub
+# (acoes, FIIs, ETFs e BDRs que nao estao na lista dos Graficos), para o mini grafico
+# do Montar a carteira e para um ativo recem-acrescentado nos Graficos. Renova um lote
+# por execucao (os mais antigos primeiro), sem pesar na coleta principal.
+HIST_SAIDA = os.path.join(AQUI, 'historico.json')
+HIST_ATIVOS = os.path.join(AQUI, 'historico_ativos.json')
+HIST_URL = 'https://gustavoamorim27-svg.github.io/hub-do-assessor/historico.json'
+HIST_HORAS = 20
+HIST_LOTE = 45
+HIST_LOTE_INICIAL = 140  # enquanto o arquivo ainda esta se formando
+DIA0 = 18262  # 01/01/2020 em dias desde 1970
+
 
 def get_json(url):
     req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': 'application/json'})
@@ -186,6 +198,67 @@ def coletar_ativo(a, anterior):
     except Exception as e:
         print(f'erro {aid:7s} {type(e).__name__}: {str(e)[:100]}', file=sys.stderr)
     return aid, s
+
+
+def _dia(ts_ms):
+    return int(round(ts_ms / 86400000)) - DIA0
+
+
+def coletar_historico(ja):
+    """Atualiza historico.json; grava a copia anterior logo de cara para o site nunca ficar sem ele."""
+    ant = {}
+    try:
+        req = urllib.request.Request(HIST_URL + '?t=' + str(int(time.time())), headers={'User-Agent': UA})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            ant = json.loads(r.read().decode('utf-8'))
+    except Exception as e:
+        print('historico anterior indisponivel:', type(e).__name__, str(e)[:80])
+    s_ant = ant.get('s') if isinstance(ant.get('s'), dict) else {}
+    if s_ant:
+        json.dump(ant, open(HIST_SAIDA, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+    try:
+        universo = json.load(open(HIST_ATIVOS, encoding='utf-8'))
+    except Exception as e:
+        print('lista do historico indisponivel:', e)
+        return
+    alvo = [a for a in universo if a[0] not in ja]
+    agora = time.time()
+    velhos = sorted([a for a in alvo if agora - (s_ant.get(a[0]) or {}).get('e', 0) / 1000 > HIST_HORAS * 3600],
+                    key=lambda a: (s_ant.get(a[0]) or {}).get('e', 0))
+    faltam = sum(1 for a in alvo if a[0] not in s_ant)
+    lote = velhos[:HIST_LOTE_INICIAL if faltam > 40 else HIST_LOTE]
+
+    def um(a):
+        aid, nome, grupo, sym, casas, prefixo = a
+        try:
+            pts, meta, _ = yahoo_velas(sym, '1y', '1d')
+            pm, _, _ = yahoo_velas(sym, '6y', '1mo', ajustado=True)
+            if not pts:
+                return aid, None
+            c = min(6, int(casas) + 2)
+            ult = meta.get('regularMarketPrice')
+            fech = [p[1] for p in pts]
+            return aid, {'n': nome, 'g': grupo, 'c': casas, 'p': prefixo,
+                         'd': [[_dia(p[0]), round(p[1], c)] for p in pts],
+                         'm': [[_dia(p[0]), round(p[1], c)] for p in pm],
+                         'u': ult if ult is not None else fech[-1],
+                         'a': fech[-2] if len(fech) > 1 else None,
+                         't': int((meta.get('regularMarketTime') or agora) * 1000), 'e': int(agora * 1000)}
+        except Exception as e:
+            print(f'hist {aid:7s} {type(e).__name__}: {str(e)[:80]}', file=sys.stderr)
+            return aid, None
+
+    novos = {}
+    with ThreadPoolExecutor(4) as ex:
+        for aid, s in ex.map(um, lote):
+            if s:
+                novos[aid] = s
+    validos = {a[0] for a in alvo}
+    series = {k: v for k, v in s_ant.items() if k in validos}
+    series.update(novos)
+    dados = {'geradoEm': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'dia0': DIA0, 's': series}
+    json.dump(dados, open(HIST_SAIDA, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+    print('historico:', len(novos), 'renovados de', len(lote), '·', len(series), 'ativos ·', os.path.getsize(HIST_SAIDA), 'bytes')
 
 
 def coletar_di(anterior):
@@ -371,6 +444,10 @@ def main():
         except Exception:
             anterior = {}
     extra = extras()
+    try:
+        coletar_historico({a[0] for a in ATIVOS + extra})
+    except Exception as e:
+        print('historico falhou:', type(e).__name__, str(e)[:120], file=sys.stderr)
     with ThreadPoolExecutor(4) as ex:
         series = dict(ex.map(lambda a: coletar_ativo(a, anterior), ATIVOS + extra))
     for a in extra:

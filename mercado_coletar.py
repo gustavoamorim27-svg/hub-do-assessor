@@ -121,8 +121,11 @@ def _r(v, casas):
 
 def yahoo_velas(simbolo, rng, intervalo, ajustado=False, casas=4):
     """Fechamentos [[ts, c]], meta e velas [[ts, abertura, maxima, minima, fechamento]] (sem ajuste)."""
+    # 'max' vai por datas (desde 1900): com range=max o Yahoo troca o mensal por trimestral
+    # nos ativos de historico longo (S&P 500, Dow...)
+    periodo = ('period1=-2208994789&period2=' + str(int(time.time()))) if rng == 'max' else ('range=' + rng)
     url = ('https://query1.finance.yahoo.com/v8/finance/chart/' + urllib.parse.quote(simbolo)
-           + '?range=' + rng + '&interval=' + intervalo + '&includePrePost=false')
+           + '?' + periodo + '&interval=' + intervalo + '&includePrePost=false')
     j = get_json(url)
     res = j['chart']['result'][0]
     ts = res.get('timestamp') or []
@@ -191,14 +194,20 @@ def coletar_ativo(a, anterior):
             pts, meta, velas = yahoo_velas(sym, '1y', '1d', casas=cv)
             if pts:
                 s['diario'], s['diarioEm'], s['velas'] = pts, int(agora * 1000), velas
-        if not s['mensal'] or not s['velasM'] or aid not in MAX_ANT or agora - s['mensalEm'] / 1000 > MENSAL_HORAS * 3600:
-            # fechamento mensal de todo o historico (ajustado por proventos): os 6 ultimos anos vao
-            # para a tabela de rentabilidade e o grafico de 5 anos; o resto, para o periodo Max.
-            # As velas mensais (sem ajuste) desenham o 5A e o Max em velas
-            pm, _, vm = yahoo_velas(sym, 'max', '1mo', ajustado=True, casas=cv)
+        if (not s['mensal'] or not s['velasM'] or aid not in MAX_ANT or not _mensal_ok(s['mensal'])
+                or agora - s['mensalEm'] / 1000 > MENSAL_HORAS * 3600):
+            # fechamento mensal de 6 anos (ajustado por proventos) para a tabela de rentabilidade e o
+            # grafico de 5 anos; as velas mensais (sem ajuste) desenham o 5A em velas
+            pm, _, vm = yahoo_velas(sym, '6y', '1mo', ajustado=True, casas=cv)
             if pm:
-                s['mensal'], s['mensalEm'], s['velasM'] = pm[-MESES_6A:], int(agora * 1000), vm[-MESES_6A:]
-                MAXIMO[aid] = {'mx': [[_dia(p[0]), p[1]] for p in pm], 'vx': [[_dia(k[0])] + k[1:] for k in vm]}
+                s['mensal'], s['mensalEm'], s['velasM'] = pm, int(agora * 1000), vm
+            # todo o historico mensal, para o periodo Max (vai para o maximo.json)
+            try:
+                px, _, vx = yahoo_velas(sym, 'max', '1mo', ajustado=True, casas=cv)
+                if px:
+                    MAXIMO[aid] = {'mx': [[_dia(p[0]), p[1]] for p in px], 'vx': [[_dia(k[0])] + k[1:] for k in vx]}
+            except Exception as e:
+                print(f'max  {aid:7s} {type(e).__name__}: {str(e)[:80]}', file=sys.stderr)
         pts, meta, vi = yahoo_velas(sym, '1d', '5m', casas=cv)
         s['intradia'] = pts
         s['velasI'] = vi
@@ -210,6 +219,14 @@ def coletar_ativo(a, anterior):
     except Exception as e:
         print(f'erro {aid:7s} {type(e).__name__}: {str(e)[:100]}', file=sys.stderr)
     return aid, s
+
+
+def _mensal_ok(pts):
+    """Fechamentos mensais de verdade (e nao trimestrais): intervalo mediano ate 40 dias."""
+    if not pts or len(pts) < 3:
+        return bool(pts)
+    gaps = sorted(pts[i][0] - pts[i - 1][0] for i in range(1, len(pts)))
+    return gaps[len(gaps) // 2] <= 40 * 86400000
 
 
 def _dia(ts_ms):
@@ -263,11 +280,15 @@ def coletar_historico(ja):
             pm, _, vm = yahoo_velas(sym, 'max', '1mo', ajustado=True, casas=c)
             if not pts:
                 return aid, None
+            if not _mensal_ok(pm):  # o Yahoo mandou trimestral: o 6 anos vem a parte
+                p6, _, v6 = yahoo_velas(sym, '6y', '1mo', ajustado=True, casas=c)
+            else:
+                p6, v6 = pm[-MESES_6A:], vm[-MESES_6A:]
             ult = meta.get('regularMarketPrice')
             fech = [p[1] for p in pts]
-            velas[aid] = {'v': [[_dia(k[0])] + k[1:] for k in vd], 'vx': [[_dia(k[0])] + k[1:] for k in vm],
+            velas[aid] = {'v': [[_dia(k[0])] + k[1:] for k in vd], 'vx': [[_dia(k[0])] + k[1:] for k in (vm if _mensal_ok(pm) else v6)],
                           'mx': [[_dia(p[0]), round(p[1], c)] for p in pm], 'e': int(agora * 1000)}
-            pm = pm[-MESES_6A:]
+            pm = p6
             return aid, {'n': nome, 'g': grupo, 'c': casas, 'p': prefixo,
                          'd': [[_dia(p[0]), round(p[1], c)] for p in pts],
                          'm': [[_dia(p[0]), round(p[1], c)] for p in pm],

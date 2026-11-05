@@ -91,6 +91,16 @@ HIST_URL = 'https://gustavoamorim27-svg.github.io/hub-do-assessor/historico.json
 HIST_HORAS = 20
 HIST_LOTE = 45
 HIST_LOTE_INICIAL = 140  # enquanto o arquivo ainda esta se formando
+# velas (abertura, maxima, minima, fechamento) do mesmo catalogo, em lotes por inicial do
+# ticker (hv/A.json, hv/B.json...): o site so baixa o lote quando o grafico em velas e aberto
+HV_DIR = os.path.join(AQUI, 'hv')
+# maximo.json: fechamentos e velas mensais de todo o historico (periodo "Max") dos ativos da
+# lista dos Graficos; o site so baixa quando o periodo Max e escolhido
+MAX_SAIDA = os.path.join(AQUI, 'maximo.json')
+MAX_URL = 'https://gustavoamorim27-svg.github.io/hub-do-assessor/maximo.json'
+MAX_ANT, MAXIMO = {}, {}
+MESES_6A = 73
+HV_URL = 'https://gustavoamorim27-svg.github.io/hub-do-assessor/hv/'
 DIA0 = 18262  # 01/01/2020 em dias desde 1970
 
 
@@ -181,12 +191,14 @@ def coletar_ativo(a, anterior):
             pts, meta, velas = yahoo_velas(sym, '1y', '1d', casas=cv)
             if pts:
                 s['diario'], s['diarioEm'], s['velas'] = pts, int(agora * 1000), velas
-        if not s['mensal'] or not s['velasM'] or agora - s['mensalEm'] / 1000 > MENSAL_HORAS * 3600:
-            # fechamento mensal de 6 anos (ajustado por proventos) para a tabela de rentabilidade;
-            # as velas mensais (sem ajuste) desenham o grafico de 5 anos em velas
-            pm, _, vm = yahoo_velas(sym, '6y', '1mo', ajustado=True, casas=cv)
+        if not s['mensal'] or not s['velasM'] or aid not in MAX_ANT or agora - s['mensalEm'] / 1000 > MENSAL_HORAS * 3600:
+            # fechamento mensal de todo o historico (ajustado por proventos): os 6 ultimos anos vao
+            # para a tabela de rentabilidade e o grafico de 5 anos; o resto, para o periodo Max.
+            # As velas mensais (sem ajuste) desenham o 5A e o Max em velas
+            pm, _, vm = yahoo_velas(sym, 'max', '1mo', ajustado=True, casas=cv)
             if pm:
-                s['mensal'], s['mensalEm'], s['velasM'] = pm, int(agora * 1000), vm
+                s['mensal'], s['mensalEm'], s['velasM'] = pm[-MESES_6A:], int(agora * 1000), vm[-MESES_6A:]
+                MAXIMO[aid] = {'mx': [[_dia(p[0]), p[1]] for p in pm], 'vx': [[_dia(k[0])] + k[1:] for k in vm]}
         pts, meta, vi = yahoo_velas(sym, '1d', '5m', casas=cv)
         s['intradia'] = pts
         s['velasI'] = vi
@@ -222,22 +234,40 @@ def coletar_historico(ja):
         print('lista do historico indisponivel:', e)
         return
     alvo = [a for a in universo if a[0] not in ja]
+    # velas da execucao anterior (o site e montado do zero a cada vez): baixa os lotes e ja
+    # regrava, para nada sumir se a coleta parar no meio
+    v_ant = {}
+    os.makedirs(HV_DIR, exist_ok=True)
+    for L in sorted({_hv_lote(a[0]) for a in alvo}):
+        try:
+            req = urllib.request.Request(HV_URL + L + '.json?t=' + str(int(time.time())), headers={'User-Agent': UA})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                j = json.loads(r.read().decode('utf-8'))
+            if isinstance(j, dict):
+                v_ant.update({k: v for k, v in j.items() if isinstance(v, dict)})
+                json.dump(j, open(os.path.join(HV_DIR, L + '.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+        except Exception:
+            pass
     agora = time.time()
-    velhos = sorted([a for a in alvo if agora - (s_ant.get(a[0]) or {}).get('e', 0) / 1000 > HIST_HORAS * 3600],
-                    key=lambda a: (s_ant.get(a[0]) or {}).get('e', 0))
-    faltam = sum(1 for a in alvo if a[0] not in s_ant)
+    sem_velas = lambda a: a[0] not in v_ant
+    velhos = sorted([a for a in alvo if sem_velas(a) or agora - (s_ant.get(a[0]) or {}).get('e', 0) / 1000 > HIST_HORAS * 3600],
+                    key=lambda a: (0 if sem_velas(a) else 1, (s_ant.get(a[0]) or {}).get('e', 0)))
+    faltam = sum(1 for a in alvo if a[0] not in s_ant or sem_velas(a))
     lote = velhos[:HIST_LOTE_INICIAL if faltam > 40 else HIST_LOTE]
 
     def um(a):
         aid, nome, grupo, sym, casas, prefixo = a
         try:
-            pts, meta, _ = yahoo_velas(sym, '1y', '1d')
-            pm, _, _ = yahoo_velas(sym, '6y', '1mo', ajustado=True)
+            c = min(6, int(casas) + 2)
+            pts, meta, vd = yahoo_velas(sym, '1y', '1d', casas=c)
+            pm, _, vm = yahoo_velas(sym, 'max', '1mo', ajustado=True, casas=c)
             if not pts:
                 return aid, None
-            c = min(6, int(casas) + 2)
             ult = meta.get('regularMarketPrice')
             fech = [p[1] for p in pts]
+            velas[aid] = {'v': [[_dia(k[0])] + k[1:] for k in vd], 'vx': [[_dia(k[0])] + k[1:] for k in vm],
+                          'mx': [[_dia(p[0]), round(p[1], c)] for p in pm], 'e': int(agora * 1000)}
+            pm = pm[-MESES_6A:]
             return aid, {'n': nome, 'g': grupo, 'c': casas, 'p': prefixo,
                          'd': [[_dia(p[0]), round(p[1], c)] for p in pts],
                          'm': [[_dia(p[0]), round(p[1], c)] for p in pm],
@@ -248,7 +278,7 @@ def coletar_historico(ja):
             print(f'hist {aid:7s} {type(e).__name__}: {str(e)[:80]}', file=sys.stderr)
             return aid, None
 
-    novos = {}
+    novos, velas = {}, {}
     with ThreadPoolExecutor(4) as ex:
         for aid, s in ex.map(um, lote):
             if s:
@@ -259,6 +289,20 @@ def coletar_historico(ja):
     dados = {'geradoEm': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'dia0': DIA0, 's': series}
     json.dump(dados, open(HIST_SAIDA, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     print('historico:', len(novos), 'renovados de', len(lote), '·', len(series), 'ativos ·', os.path.getsize(HIST_SAIDA), 'bytes')
+    todas = {k: v for k, v in v_ant.items() if k in validos}
+    todas.update(velas)
+    lotes = {}
+    for k, v in todas.items():
+        lotes.setdefault(_hv_lote(k), {})[k] = v
+    for L, d in lotes.items():
+        json.dump(d, open(os.path.join(HV_DIR, L + '.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+    print('velas do historico:', len(velas), 'renovadas ·', len(todas), 'ativos em', len(lotes), 'lotes')
+
+
+def _hv_lote(aid):
+    """Lote das velas: a inicial do ticker (A-Z), ou '0' para o resto."""
+    c = str(aid or '0')[:1].upper()
+    return c if 'A' <= c <= 'Z' else '0'
 
 
 def coletar_di(anterior):
@@ -445,6 +489,15 @@ def main():
             anterior = {}
     extra = extras()
     try:
+        req = urllib.request.Request(MAX_URL + '?t=' + str(int(time.time())), headers={'User-Agent': UA})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            j = json.loads(r.read().decode('utf-8'))
+        if isinstance(j.get('s'), dict):
+            MAX_ANT.update(j['s'])
+            json.dump(j, open(MAX_SAIDA, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+    except Exception as e:
+        print('maximo anterior indisponivel:', type(e).__name__, str(e)[:80])
+    try:
         coletar_historico({a[0] for a in ATIVOS + extra})
     except Exception as e:
         print('historico falhou:', type(e).__name__, str(e)[:120], file=sys.stderr)
@@ -452,6 +505,12 @@ def main():
         series = dict(ex.map(lambda a: coletar_ativo(a, anterior), ATIVOS + extra))
     for a in extra:
         series[a[0]]['extra'] = True
+    mx = {k: v for k, v in MAX_ANT.items() if k in series}
+    mx.update(MAXIMO)
+    if mx:
+        json.dump({'geradoEm': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'dia0': DIA0, 's': mx},
+                  open(MAX_SAIDA, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+        print('maximo:', len(MAXIMO), 'renovados ·', len(mx), 'ativos ·', os.path.getsize(MAX_SAIDA), 'bytes')
     # Selic e IPCA entram no grupo de indices logo depois do Ibovespa
     bcb = coletar_bcb(anterior)
     if bcb:

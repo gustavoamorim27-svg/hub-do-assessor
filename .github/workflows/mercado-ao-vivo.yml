@@ -4,18 +4,25 @@
 # Dois turnos porque cada execução do GitHub Actions dura no máximo 6 h.
 name: Mercado ao vivo
 
+# O agendamento do GitHub atrasa ou pula horários com frequência: por isso há várias
+# tentativas ao longo do dia. Se já houver um turno rodando, a nova tentativa fica na fila
+# e só começa quando ele terminar (não derruba o que está no ar).
+# Enquanto roda, o turno também dispara a coleta completa (Publicar Hub e Radar) a cada
+# ~20 min, para os gráficos não dependerem só do agendamento do GitHub.
 on:
   schedule:
     - cron: '50 12 * * 1-5'   # 9h50 de Brasília
+    - cron: '7,37 13-20 * * 1-5'   # novas tentativas a cada 30 min até 17h37
     - cron: '45 16 * * 1-5'   # 13h45 de Brasília
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: mercado-ao-vivo
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   ao-vivo:
@@ -27,6 +34,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Cotações a cada minuto até o fim do turno
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           agora=$(date -u +%s)
           fim=$(date -u -d "$(date -u +%Y-%m-%d) 21:20" +%s)
@@ -34,4 +43,5 @@ jobs:
           [ $minutos -gt 285 ] && minutos=285
           [ $minutos -lt 5 ] && minutos=5
           echo "rodando por $minutos minutos"
+          ( while true; do sleep 1200; gh workflow run publicar.yml --ref main >/dev/null 2>&1 && echo "coleta completa disparada $(date -u +%H:%M)"; done ) &
           python mercado_vivo.py $minutos

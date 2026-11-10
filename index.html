@@ -4,38 +4,45 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#111317">
+<meta name="theme-color" content="#000000">
 <title>Hub do Assessor</title>
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAD1ElEQVR42u2WTWxUVRTHf+++N29m2nEGLO1QJFFqY6gblcYSQxpsaYwbI4lxY4IQjDvdGOMHmpCIcdGFO9lIlPix8gOJG2OgBFegqZiCbPxAuiDAovPR9zHvvnffcTGdcQaaIm5wMTe5yfufd9+9/3vO/5x3rPUDZeEODsUdHj0CPQI9Av8vApZlYds2lmX9p81s20ap27uT03l4HMeEYUg2myWbzSLy74tkmqZ4nodt2+Tz+dsj0Dq8XC7z4NhWLi8ucunSX2SzWYwxbSItz3Riy7JIkoR8Ps/k5A7qtToL5y/gOA4iQpqmtw6BUgrf99mx4zGOf/MVz+95jnp1Cc/ziOO47VZjDHEctwkYY0iSBK01GzeW+fb4MWZn3yMIGtTrdcKwccuQqM4QJElCmqYsLVVYd/cGdu2aZnBwkDAMAejv72dgYKB9uxbOZByMMUSNkMpShf6+PDMz04yOjuB7/tqaWj9Qlg1Dm8TO5GXvvv0iksrc3ElZXLwsIiK///GbPDI+Icp25cMjR6RarcrME0+KZVnyweHDUq1WZXLntIw+MCZB4MnFi7/K6R9Oi9YN8f1l2f/Ci+LmCrJhaJOsHyjfNFfxjzA2tpU3D7zN0aNHuX9klN1PP0VqNMVikVKphGM3PVAoFJrYcRCBOI7ZvPkeZmffZ3LnDFGkeffQQYaGhtBar5ol6kYlg+KLL4/x+Wef8t33JxARisViM+ZJU5CpCLat0FojIiszpS+f59y5Xzhxco75+Z85c+Ysw8ObGBnZQqMREQQBYRh2hUR1372pcN9vppObyXSpHqv5HGuNMSnDw8Mtc5NgmpLL5UgSQxIn5HI5RFK01lgWPD41w0MPb1vBVncd6EyrjNMUVcvmODYAV65cQSnFG6+/yr69e5ie2tksXo6DUjZxHDM+vo23DrxGpVJlamqK8xcWOL+wwNT0DLufeZYwCKnXa1y+9CfZXK47C7TW1Go1/CDswp7no2yXjz7+hFOn5ti+fYJi8S6+PnacWq2K1po0Nfi+z9kff2Ji4lEOvXOQ+fl5Xnr5FXQUsby8TBgE1Os1wiBAKYWIYLV6QhHBdV36+vqIogZh2OjAEWGjQRLHWEqxrlTk6tVrlEolCoUCnueRpimlUokgCKhUqpSHBln2PKIoau9x731bCIOA69ev4bpuN4EWCWMMSqk2w07cilscx7iuizEGY0z7/5EkCUopHMdBa43jOCilSNMUy7KIogilFJlM5p9qemNXvFq57RLiik1E1lzbWrPW3jeJ8MaXq+FO21pr1/qu15D0CPQI9Ah0jr8BmGAhZCmMq0YAAAAASUVORK5CYII=">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=5">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
-:root{--bg:#111317;--card:#181b20;--line:#2a2e35;--txt:#f2f2f0;--mut:#8a8f98;--err:#e5484d;--btn:#f2f2f0;--btnTxt:#111317}
+:root{--bg:#000;--card:rgba(9,11,15,.78);--line:rgba(255,255,255,.14);--txt:#f2f3f5;--mut:#9aa1ac;--err:#ff5c7a;--btn:#fff;--btnTxt:#05070a}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:var(--bg);background-image:radial-gradient(1200px 600px at 50% -10%,#1d2026 0%,var(--bg) 60%);color:var(--txt);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px 16px}
-.box{width:100%;max-width:360px}
-.mark{font-weight:800;font-size:44px;letter-spacing:-1.5px;line-height:1;margin:0 0 6px}
-.mark i{font-style:normal;color:var(--mut)}
-.sub{color:var(--mut);margin:0 0 28px;font-size:14px;letter-spacing:.2px}
-form{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px}
-label.l{display:block;font-size:13px;color:var(--mut);margin:0 0 8px}
+body{position:relative;overflow:hidden;background:#000;color:var(--txt);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px;-webkit-font-smoothing:antialiased}
+/* ceu: pontos desenhados com gradientes, deslizando devagar (so transform) */
+body::before{content:"";position:fixed;inset:-600px;z-index:-2;background-color:#000;background-image:radial-gradient(2.0px 2.0px at 40px 70px,rgba(255,255,255,.85) 50%,transparent 51%),radial-gradient(1.7px 1.7px at 190px 310px,rgba(176,206,255,.8) 50%,transparent 51%),radial-gradient(2.4px 2.4px at 330px 120px,rgba(255,255,255,.7) 50%,transparent 51%),radial-gradient(1.7px 1.7px at 470px 520px,rgba(255,214,170,.8) 50%,transparent 51%),radial-gradient(1.5px 1.5px at 560px 220px,rgba(255,255,255,.6) 50%,transparent 51%),radial-gradient(1.9px 1.9px at 110px 480px,rgba(255,255,255,.55) 50%,transparent 51%),radial-gradient(1.4px 1.4px at 260px 580px,rgba(176,206,255,.6) 50%,transparent 51%),radial-gradient(1.7px 1.7px at 520px 40px,rgba(255,255,255,.5) 50%,transparent 51%);background-size:600px 600px;animation:ceu 180s linear infinite;will-change:transform}
+@keyframes ceu{to{transform:translate3d(-600px,600px,0)}}
+/* limbo do planeta */
+body::after{content:"";position:fixed;left:-22vw;right:-22vw;bottom:-46vh;height:70vh;z-index:-1;border-radius:50% 50% 0 0/100% 100% 0 0;background:radial-gradient(60% 90% at 50% 0%,rgba(22,40,78,.9) 0%,rgba(6,10,20,.96) 26%,#000 62%);box-shadow:0 -1px 0 0 rgba(190,215,255,.75),0 -2px 14px 1px rgba(110,160,255,.55),0 -10px 70px 6px rgba(52,100,230,.3),0 -30px 160px 20px rgba(30,60,160,.16),inset 0 26px 60px -10px rgba(90,140,255,.22)}
+@media (prefers-reduced-motion:reduce){body::before{animation:none}}
+.box{width:100%;max-width:372px}
+.mark{font-weight:700;font-size:44px;letter-spacing:.02em;line-height:1;margin:0 0 10px;text-transform:uppercase}
+.mark i{font-style:normal;color:#ff621d}
+.sub{color:var(--mut);margin:0 0 30px;font-size:11px;letter-spacing:.24em;text-transform:uppercase}
+form{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:24px}
+label.l{display:block;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut);margin:0 0 10px}
 .pw{position:relative}
-input[type=password],input[type=text]{width:100%;height:46px;border-radius:10px;border:1px solid var(--line);background:#0f1114;color:var(--txt);font-size:16px;padding:0 46px 0 14px;outline:none;transition:border-color .15s}
-input:focus{border-color:#5a606a}
-.eye{position:absolute;right:6px;top:6px;width:34px;height:34px;border:0;background:transparent;color:var(--mut);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+input[type=password],input[type=text]{width:100%;height:48px;border-radius:6px;border:1px solid var(--line);background:rgba(255,255,255,.045);color:var(--txt);font-size:16px;padding:0 46px 0 14px;outline:none;transition:border-color .15s}
+input:focus{border-color:#fff}
+.eye{position:absolute;right:6px;top:7px;width:34px;height:34px;border:0;background:transparent;color:var(--mut);border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .eye:hover{color:var(--txt)}
-.rem{display:flex;align-items:center;gap:8px;margin:14px 0 18px;font-size:14px;color:#c9ccd1;cursor:pointer;user-select:none}
-.rem input{width:16px;height:16px;accent-color:#f2f2f0;margin:0}
-button.go{width:100%;height:46px;border:0;border-radius:10px;background:var(--btn);color:var(--btnTxt);font-weight:700;font-size:15px;cursor:pointer;transition:opacity .15s}
+.rem{display:flex;align-items:center;gap:8px;margin:16px 0 20px;font-size:13.5px;color:#c9ccd1;cursor:pointer;user-select:none}
+.rem input{width:16px;height:16px;accent-color:#ff621d;margin:0}
+button.go{width:100%;height:48px;border:1px solid #fff;border-radius:4px;background:var(--btn);color:var(--btnTxt);font-weight:700;font-size:12px;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;transition:background .2s,color .2s,opacity .15s}
+button.go:hover{background:transparent;color:#fff}
 button.go:disabled{opacity:.55;cursor:default}
 .msg{min-height:20px;margin:12px 0 0;font-size:13px;color:var(--err)}
 .msg.info{color:var(--mut)}
 .shake{animation:sh .35s}
 @keyframes sh{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
-.foot{color:#5d626b;font-size:12px;margin-top:18px;text-align:center}
-.loading{display:none;text-align:center;color:var(--mut);font-size:14px}
-.loading .sp{width:22px;height:22px;border:2px solid #2f333a;border-top-color:var(--txt);border-radius:50%;margin:0 auto 12px;animation:r .8s linear infinite}
+.foot{color:#6b727d;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;margin-top:20px;text-align:center}
+.loading{display:none;text-align:center;color:var(--mut);font-size:11px;letter-spacing:.22em;text-transform:uppercase}
+.loading .sp{width:22px;height:22px;border:1px solid rgba(255,255,255,.22);border-top-color:#fff;border-radius:50%;margin:0 auto 14px;animation:r .8s linear infinite}
 @keyframes r{to{transform:rotate(360deg)}}
 body.abrindo form,body.abrindo .sub{display:none}
 body.abrindo .loading{display:block}

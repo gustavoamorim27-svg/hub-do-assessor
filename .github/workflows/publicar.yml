@@ -16,6 +16,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 concurrency:
   group: pages
@@ -75,3 +76,24 @@ jobs:
           path: _site
       - id: deploy
         uses: actions/deploy-pages@v4
+
+      # O agendamento do GitHub às vezes fica horas sem disparar. Como esta publicação roda a cada
+      # push e em vários horários, ela confere se a coleta ao vivo está de pé no pregão e, se não
+      # estiver, liga de novo (as duas rotinas passam a se socorrer).
+      - name: Coleta ao vivo parada no pregão? Liga de novo
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          d=$(TZ=America/Sao_Paulo date +%u)
+          hm=$((10#$(TZ=America/Sao_Paulo date +%H%M)))
+          if [ "$d" -le 5 ] && [ "$hm" -ge 945 ] && [ "$hm" -le 1815 ]; then
+            n=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow mercado-ao-vivo.yml --limit 10 --json status --jq '[.[] | select(.status != "completed")] | length')
+            echo "turnos ao vivo em andamento ou na fila: $n"
+            if [ "$n" = "0" ]; then
+              gh workflow run mercado-ao-vivo.yml --repo "$GITHUB_REPOSITORY" --ref main && echo "coleta ao vivo disparada"
+            fi
+          else
+            echo "fora do pregão: nada a fazer"
+          fi

@@ -29,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
+      - name: Marca o início do turno
+        run: echo "INICIO=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
@@ -45,3 +47,21 @@ jobs:
           echo "rodando por $minutos minutos"
           ( while true; do sleep 1200; gh workflow run publicar.yml --ref main >/dev/null 2>&1 && echo "coleta completa disparada $(date -u +%H:%M)"; done ) &
           python mercado_vivo.py $minutos
+
+      # Não depende só do agendamento do GitHub: ao terminar, o turno deixa o próximo na fila
+      # enquanto for pregão. Só passa o bastão se rodou pelo menos 10 minutos, para um turno
+      # que falha logo de cara não ficar se chamando em sequência.
+      - name: Passa o bastão para o próximo turno
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          d=$(TZ=America/Sao_Paulo date +%u)
+          hm=$((10#$(TZ=America/Sao_Paulo date +%H%M)))
+          rodou=$(( $(date +%s) - ${INICIO:-$(date +%s)} ))
+          if [ "$d" -le 5 ] && [ "$hm" -ge 945 ] && [ "$hm" -le 1815 ] && [ "$rodou" -ge 600 ]; then
+            gh workflow run mercado-ao-vivo.yml --repo "$GITHUB_REPOSITORY" --ref main && echo "próximo turno na fila"
+          else
+            echo "sem próximo turno (fora do pregão ou turno curto: ${rodou}s)"
+          fi

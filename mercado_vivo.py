@@ -120,41 +120,49 @@ def gravar(dados):
 
 
 def pregao():
-    """Dias úteis, das 9h40 às 18h30 de Brasília (cobre B3, DI e o fechamento de Nova York)."""
+    """Dias úteis, das 9h30 às 18h30 de Brasília (cobre a pré-abertura e o leilão da B3, DI e o fechamento de Nova York)."""
     a = datetime.now(BRT)
-    return a.weekday() < 5 and (9, 40) <= (a.hour, a.minute) <= (18, 30)
+    return a.weekday() < 5 and (9, 30) <= (a.hour, a.minute) <= (18, 30)
 
 
 def main():
+    """Fica de pé o turno inteiro (até ~4h45): no pregão grava a cada ~60 s; fora dele grava uma vez,
+    para deixar o fechamento certo, e espera o próximo pregão. Assim a corrente de turnos nunca para
+    (segunda de manhã incluída) e não depende do agendamento do GitHub, que às vezes passa o dia sem disparar."""
     minutos = float(sys.argv[1]) if len(sys.argv) > 1 else 60
     fim = time.time() + minutos * 60
     modo = {'spark': True}
-    n = erros = 0
-    # O GitHub às vezes dispara o agendamento com horas de atraso (já de noite). Fora do
-    # pregão o turno grava uma única vez, para deixar o fechamento certo, e encerra.
-    if not pregao():
-        try:
-            dados = ciclo(modo)
-            if dados['q'] or dados['di']:
-                gravar(dados)
-                print(datetime.now(BRT).strftime('%H:%M'), 'fora do pregão: gravado uma vez', len(dados['q']), 'ativos')
-        except Exception as e:
-            print('fora do pregão, sem gravar:', type(e).__name__, str(e)[:160])
-        return
-    while time.time() < fim and pregao():
+    n = erros = seguidos = 0
+    fora_gravado = False
+    while time.time() < fim:
         t0 = time.time()
+        if not pregao():
+            if not fora_gravado:
+                try:
+                    dados = ciclo(modo)
+                    if dados['q'] or dados['di']:
+                        gravar(dados)
+                        print(datetime.now(BRT).strftime('%d/%m %H:%M'), 'fora do pregão: fechamento gravado', len(dados['q']), 'ativos')
+                    fora_gravado = True
+                except Exception as e:
+                    print('fora do pregão, sem gravar:', type(e).__name__, str(e)[:160])
+            time.sleep(min(300, max(5, fim - time.time())))
+            continue
+        fora_gravado = False
         try:
             dados = ciclo(modo)
             if dados['q'] or dados['di']:
                 gravar(dados)
                 n += 1
+                seguidos = 0
                 if n == 1 or n % 30 == 0:
-                    print(datetime.now(BRT).strftime('%H:%M'), 'gravado', len(dados['q']), 'ativos,', len(dados['di']), 'DI')
+                    print(datetime.now(BRT).strftime('%d/%m %H:%M'), 'gravado', len(dados['q']), 'ativos,', len(dados['di']), 'DI')
         except Exception as e:
             erros += 1
+            seguidos += 1
             print('erro no ciclo:', type(e).__name__, str(e)[:160])
-            if erros >= 10 and n == 0:
-                sys.exit('não consegui gravar nenhuma vez — encerro')
+            if seguidos >= 5:
+                modo['spark'] = True  # tenta de novo o modo em lote depois de uma sequência de falhas
         time.sleep(max(5, INTERVALO - (time.time() - t0)))
     print('fim:', n, 'gravações,', erros, 'erros')
 

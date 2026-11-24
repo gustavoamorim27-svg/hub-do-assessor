@@ -64,10 +64,25 @@ jobs:
         if: steps.mercado.outcome != 'success'
         run: grep -q '"series"' mercado_anterior.json && cp mercado_anterior.json mercado.json || true
 
+      - name: FIIs anteriores
+        run: |
+          curl -fsS -m 30 -o fiis_anterior.json "https://gustavoamorim27-svg.github.io/hub-do-assessor/fiis.json" \
+            || echo '{}' > fiis_anterior.json
+
+      - name: Coletar fundos imobiliários (Fundamentus + Yahoo)
+        id: fiis
+        continue-on-error: true
+        timeout-minutes: 8
+        run: python fiis_coletar.py fiis_anterior.json
+
+      - name: Sem FIIs novos? Mantém o que está no ar
+        if: steps.fiis.outcome != 'success'
+        run: grep -q '"fiis"' fiis_anterior.json && cp fiis_anterior.json fiis.json || true
+
       - name: Montar o site
         run: |
           mkdir -p _site
-          rsync -a --exclude '.git' --exclude '.github' --exclude '_site' --exclude 'radar_coletar.py' --exclude 'mercado_coletar.py' --exclude 'mercado_vivo.py' --exclude 'mercado_anterior.json' --exclude '*.zip' ./ _site/
+          rsync -a --exclude '.git' --exclude '.github' --exclude '_site' --exclude 'radar_coletar.py' --exclude 'mercado_coletar.py' --exclude 'mercado_vivo.py' --exclude 'mercado_anterior.json' --exclude 'fiis_coletar.py' --exclude 'fiis_anterior.json' --exclude '*.zip' ./ _site/
           ls -la _site
 
       - uses: actions/configure-pages@v5

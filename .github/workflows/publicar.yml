@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 15
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy3.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,32 +64,58 @@ jobs:
         if: steps.mercado.outcome != 'success'
         run: grep -q '"series"' mercado_anterior.json && cp mercado_anterior.json mercado.json || true
 
-      - name: FIIs anteriores
+      - name: FIIs e ações anteriores
         run: |
-          curl -fsS -m 30 -o fiis_anterior.json "https://gustavoamorim27-svg.github.io/hub-do-assessor/fiis.json" \
-            || echo '{}' > fiis_anterior.json
+          for f in fiis fiis_noticias acoes acoes_noticias; do
+            curl -fsS -m 30 -o ${f}_anterior.json "https://gustavoamorim27-svg.github.io/hub-do-assessor/${f}.json" \
+              || echo '{}' > ${f}_anterior.json
+          done
 
-      - name: Coletar fundos imobiliários (Fundamentus + Yahoo)
+      - name: Coletar fundos imobiliários (Fundamentus + Yahoo + notícias)
         id: fiis
         continue-on-error: true
-        timeout-minutes: 8
-        run: python fiis_coletar.py fiis_anterior.json
+        timeout-minutes: 10
+        run: python fiis_coletar.py fiis_anterior.json fiis_noticias_anterior.json
 
-      - name: Sem FIIs novos? Mantém o que está no ar
-        if: steps.fiis.outcome != 'success'
-        run: grep -q '"fiis"' fiis_anterior.json && cp fiis_anterior.json fiis.json || true
+      - name: Coletar ações (Fundamentus + Yahoo + notícias)
+        id: acoes
+        continue-on-error: true
+        timeout-minutes: 10
+        run: python acoes_coletar.py acoes_anterior.json acoes_noticias_anterior.json
+
+      - name: Sem coleta nova? Mantém o que está no ar
+        run: |
+          for f in fiis fiis_noticias acoes acoes_noticias; do
+            if [ ! -s ${f}.json ] && grep -q '"em"' ${f}_anterior.json; then cp ${f}_anterior.json ${f}.json; fi
+          done
 
       - name: Montar o site
         run: |
           mkdir -p _site
-          rsync -a --exclude '.git' --exclude '.github' --exclude '_site' --exclude 'radar_coletar.py' --exclude 'mercado_coletar.py' --exclude 'mercado_vivo.py' --exclude 'mercado_anterior.json' --exclude 'fiis_coletar.py' --exclude 'fiis_anterior.json' --exclude '*.zip' ./ _site/
+          rsync -a --exclude '.git' --exclude '.github' --exclude '_site' --exclude 'radar_coletar.py' --exclude 'mercado_coletar.py' --exclude 'mercado_vivo.py' --exclude 'mercado_anterior.json' --exclude 'fiis_coletar.py' --exclude 'acoes_coletar.py' --exclude '*_anterior.json' --exclude '*.zip' ./ _site/
           ls -la _site
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+      # v43: às vezes o GitHub ainda não "enxerga" o pacote recém-enviado e a implantação falha com
+      # 'No artifacts named github-pages were found'. Espera um pouco e tenta de novo (até 3 vezes).
       - id: deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Implantação não achou o pacote? Espera e tenta de novo
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 30
+      - id: deploy2
+        if: steps.deploy.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Ainda não? Última tentativa
+        if: steps.deploy.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 60
+      - id: deploy3
+        if: steps.deploy.outcome == 'failure' && steps.deploy2.outcome == 'failure'
         uses: actions/deploy-pages@v4
 
       # O agendamento do GitHub às vezes fica horas sem disparar. Como esta publicação roda a cada

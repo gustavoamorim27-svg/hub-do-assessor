@@ -83,6 +83,61 @@ def yahoo(t):
     return t, d
 
 
+NEWS_TOP = 200   # FIIs mais negociados com notícias pré-coletadas (o Hub busca as dos outros na hora)
+
+
+def noticias_de(t):
+    """Até 8 manchetes recentes do Google Notícias para o ticker."""
+    import xml.etree.ElementTree as ET
+    url = ('https://news.google.com/rss/search?q=' + urllib.parse.quote('"%s" when:120d' % t)
+           + '&hl=pt-BR&gl=BR&ceid=BR:pt-419')
+    try:
+        raiz = ET.fromstring(baixar(url, 2))
+    except Exception:  # noqa: BLE001
+        return t, None
+    itens = []
+    for it in raiz.iter('item'):
+        tit = (it.findtext('title') or '').strip()
+        fonte = (it.findtext('source') or '').strip()
+        if fonte and tit.endswith(' - ' + fonte):
+            tit = tit[: -len(fonte) - 3]
+        em = it.findtext('pubDate') or ''
+        try:
+            em = datetime.strptime(em[:25].strip(), '%a, %d %b %Y %H:%M:%S').strftime('%Y-%m-%d')
+        except ValueError:
+            em = ''
+        itens.append({'tit': tit, 'fonte': fonte, 'link': it.findtext('link') or '', 'em': em})
+    itens.sort(key=lambda x: x['em'], reverse=True)
+    return t, itens[:8]
+
+
+def noticias_velhas(arq):
+    try:
+        em = json.load(open(arq, encoding='utf-8')).get('em') if arq and os.path.exists(arq) else ''
+        return not em or datetime.now(BRT) - datetime.fromisoformat(em) > timedelta(hours=6)
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def coletar_noticias(tickers, saida, anterior):
+    """Grava {ticker: [manchetes]}; o que falhar fica com as do arquivo anterior."""
+    ant = {}
+    try:
+        ant = json.load(open(anterior, encoding='utf-8')).get('n', {}) if anterior and os.path.exists(anterior) else {}
+    except Exception:  # noqa: BLE001
+        ant = {}
+    out = {}
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        for t, itens in ex.map(noticias_de, tickers):
+            if itens is not None:
+                out[t] = itens
+            elif t in ant:
+                out[t] = ant[t]
+    json.dump({'em': datetime.now(BRT).isoformat(timespec='seconds'), 'n': out}, open(saida, 'w', encoding='utf-8'),
+              ensure_ascii=False, separators=(',', ':'))
+    print('%s: notícias de %d ativos' % (os.path.basename(saida), len(out)))
+
+
 def main():
     ant = {}
     if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
@@ -97,6 +152,9 @@ def main():
             if idade < timedelta(hours=6) and len(ant.get('fiis') or []) > 100:
                 json.dump(ant, open(SAIDA, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
                 print('fiis.json recente (%s): mantido' % em)
+                if noticias_velhas(sys.argv[2] if len(sys.argv) > 2 else None):
+                    coletar_noticias([x['t'] for x in ant['fiis'][:NEWS_TOP]], os.path.join(AQUI, 'fiis_noticias.json'),
+                                     sys.argv[2] if len(sys.argv) > 2 else None)
                 return
         except Exception:  # noqa: BLE001
             pass
@@ -123,6 +181,8 @@ def main():
     out = {'em': datetime.now(BRT).isoformat(timespec='seconds'), 'fonte': 'Fundamentus e Yahoo Finance', 'fiis': lista}
     json.dump(out, open(SAIDA, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     print('fiis.json: %d FIIs, %d com dados do Yahoo' % (len(lista), sum(1 for f in lista if f.get('nome'))))
+    coletar_noticias([f['t'] for f in lista[:NEWS_TOP]], os.path.join(AQUI, 'fiis_noticias.json'),
+                     sys.argv[2] if len(sys.argv) > 2 else None)
 
 
 if __name__ == '__main__':
